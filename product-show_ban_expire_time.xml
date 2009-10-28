@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<product productid="show_ban_expire_time" active="1">
+	<title>Show ban expire time</title>
+	<description><![CDATA[Show user's ban expire time in messages and profile]]></description>
+	<version>0.1</version>
+	<url><![CDATA[http://www.vbulletin.org/forum/misc.php?do=producthelp&pid=show_ban_expire_time]]></url>
+	<versioncheckurl><![CDATA[http://www.vbulletin.org/forum/misc.php?do=productcheck&pid=show_ban_expire_time]]></versioncheckurl>
+	<apm_releasedate>0</apm_releasedate>
+	<apm_author />
+	<apm_relatedurl />
+	<apm_extrainfo />
+	<apm_extraedit />
+	<dependencies>
+	</dependencies>
+	<codes>
+	</codes>
+	<templates>
+	</templates>
+	<plugins>
+		<plugin active="1" executionorder="5">
+			<title>Get ban expire time</title>
+			<hookname>member_complete</hookname>
+			<phpcode><![CDATA[// check if user banned
+$sbet_banned_usergroups =
+  unserialize( $vbulletin->options['sbet_banned_usergroups'] );
+
+if( in_array( $userinfo['usergroupid'], $sbet_banned_usergroups ) )
+{
+  // get ban expire time
+  $_res = $db->query_first("
+    SELECT
+      `liftdate`
+    FROM
+      `" . TABLE_PREFIX . "userban`
+    WHERE
+      `userid` = " . intval( $userinfo['userid'] ) . "
+    LIMIT 1
+  ");
+
+  if( $_res && $_res['liftdate'] > 0 )
+  {
+    $prepared['ban_expire_time'] = construct_phrase(
+      $vbphrase['banned_till_n'],
+      vbdate( $vbulletin->options['dateformat'], $_res['liftdate'] )
+    );
+  }
+
+  unset( $_res );
+}
+
+unset( $sbet_banned_usergroups );]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Modify templates</title>
+			<hookname>parse_templates</hookname>
+			<phpcode><![CDATA[if( THIS_SCRIPT == 'showthread' || THIS_SCRIPT == 'showpost' )
+{
+  $sbet_search  = array(
+    '$post[usertitle]',
+  );
+
+  $sbet_replace = array(
+    '$post[usertitle]".(($post[\'ban_expire_time\']) ? '
+    . '(" $post[ban_expire_time]") : (""))."'
+  );
+
+  $vbulletin->templatecache['postbit'] = str_replace(
+    $sbet_search  ,
+    $sbet_replace ,
+    $vbulletin->templatecache['postbit']
+  );
+
+  $vbulletin->templatecache['postbit_legacy'] = str_replace(
+    $sbet_search  ,
+    $sbet_replace ,
+    $vbulletin->templatecache['postbit_legacy']
+  );
+
+  unset( $sbet_search  );
+  unset( $sbet_replace );
+}
+
+if( THIS_SCRIPT == 'member' )
+{
+  $sbet_search  = array(
+    '$prepared[usertitle]',
+  );
+
+  $sbet_replace = array(
+    '$prepared[usertitle]".(($prepared[\'ban_expire_time\'])'
+    . ' ? (" $prepared[ban_expire_time]")'
+    . ' : (""))."'
+  );
+
+  $vbulletin->templatecache['MEMBERINFO'] = str_replace(
+    $sbet_search  ,
+    $sbet_replace ,
+    $vbulletin->templatecache['MEMBERINFO']
+  );
+
+  unset( $sbet_search  );
+  unset( $sbet_replace );
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Get ban expire date</title>
+			<hookname>postbit_display_complete</hookname>
+			<phpcode><![CDATA[static $liftdate_cache = array();
+
+$liftdate = 0;
+
+if( array_key_exists( $this->post['userid'], $liftdate_cache ) )
+{
+  $liftdate = $liftdate_cache[$this->post['userid']];
+}
+else
+{
+  // check if user banned
+  $sbet_banned_usergroups =
+    unserialize( $vbulletin->options['sbet_banned_usergroups'] );
+
+  if( in_array( $this->post['usergroupid'], $sbet_banned_usergroups ) )
+  {
+    // get ban expire time
+    $_res = $this->registry->db->query_first("
+      SELECT
+        `liftdate`
+      FROM
+        `" . TABLE_PREFIX . "userban`
+      WHERE
+        `userid` = " . intval( $this->post['userid'] ) . "
+      LIMIT 1
+    ");
+
+    if( $_res )
+      $liftdate = $_res['liftdate'];
+  }
+
+  $liftdate_cache[$this->post['userid']] = $liftdate;
+}
+
+if( $liftdate > 0 )
+{
+  $post['ban_expire_time'] = construct_phrase(
+    $vbphrase['banned_till_n'],
+    vbdate( $vbulletin->options['dateformat'], $liftdate )
+  );
+}]]></phpcode>
+		</plugin>
+	</plugins>
+	<phrases>
+		<phrasetype name="GLOBAL" fieldname="global">
+			<phrase name="banned_till_n" date="1256732053" username="Dimit" version=""><![CDATA[(till {1})]]></phrase>
+		</phrasetype>
+		<phrasetype name="vBulletin Settings" fieldname="vbsettings">
+			<phrase name="setting_sbet_banned_usergroups_desc" date="1256654009" username="Dimit" version="0.1"><![CDATA[Show ban expire time only for users from these groups]]></phrase>
+			<phrase name="setting_sbet_banned_usergroups_title" date="1256654009" username="Dimit" version="0.1"><![CDATA[Banned usergroups]]></phrase>
+			<phrase name="settinggroup_show_ban_expire_time" date="1256653860" username="Dimit" version="0.1"><![CDATA[Show ban expire time]]></phrase>
+		</phrasetype>
+	</phrases>
+	<options>
+		<settinggroup name="show_ban_expire_time" displayorder="65535">
+			<setting varname="sbet_banned_usergroups" displayorder="10">
+				<datatype>free</datatype>
+				<optioncode>usergroup:5</optioncode>
+				<defaultvalue>a:1:{i:0;i:8;}</defaultvalue>
+			</setting>
+		</settinggroup>
+	</options>
+	<helptopics>
+	</helptopics>
+	<cronentries>
+	</cronentries>
+	<faqentries>
+	</faqentries>
+	<templateedits>
+	</templateedits>
+</product>
