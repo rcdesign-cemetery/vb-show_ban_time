@@ -3,11 +3,11 @@
 <product productid="show_ban_expire_time" active="1">
 	<title>Show ban expire time</title>
 	<description><![CDATA[Show user's ban expire time in messages and profile]]></description>
-	<version>0.1</version>
+	<version>0.2</version>
 	<url><![CDATA[http://www.vbulletin.org/forum/misc.php?do=producthelp&pid=show_ban_expire_time]]></url>
 	<versioncheckurl><![CDATA[http://www.vbulletin.org/forum/misc.php?do=productcheck&pid=show_ban_expire_time]]></versioncheckurl>
-	<apm_releasedate>0</apm_releasedate>
-	<apm_author />
+	<apm_releasedate>1256767200</apm_releasedate>
+	<apm_author>Dmitry Titov, Vitaly Puzrin</apm_author>
 	<apm_relatedurl />
 	<apm_extrainfo />
 	<apm_extraedit />
@@ -25,7 +25,7 @@
 $sbet_banned_usergroups =
   unserialize( $vbulletin->options['sbet_banned_usergroups'] );
 
-if( in_array( $userinfo['usergroupid'], $sbet_banned_usergroups ) )
+if( is_member_of( $userinfo, $sbet_banned_usergroups ) )
 {
   // get ban expire time
   $_res = $db->query_first("
@@ -44,6 +44,14 @@ if( in_array( $userinfo['usergroupid'], $sbet_banned_usergroups ) )
       $vbphrase['banned_till_n'],
       vbdate( $vbulletin->options['dateformat'], $_res['liftdate'] )
     );
+  }
+  else
+  if( $_res && $_res['liftdate'] == 0 )
+  {
+    $prepared['ban_expire_time'] =
+      $vbulletin->options['sbet_show_forever_ban']
+        ? $vbphrase['banned_forever']
+        : '';
   }
 
   unset( $_res );
@@ -108,7 +116,7 @@ if( THIS_SCRIPT == 'member' )
 			<hookname>postbit_display_complete</hookname>
 			<phpcode><![CDATA[static $liftdate_cache = array();
 
-$liftdate = 0;
+$liftdate = false;
 
 if( array_key_exists( $this->post['userid'], $liftdate_cache ) )
 {
@@ -120,7 +128,9 @@ else
   $sbet_banned_usergroups =
     unserialize( $vbulletin->options['sbet_banned_usergroups'] );
 
-  if( in_array( $this->post['usergroupid'], $sbet_banned_usergroups ) )
+  $post_userinfo = fetch_userinfo( $this->post['userid'] );
+
+  if( is_member_of( $post_userinfo, $sbet_banned_usergroups ) )
   {
     // get ban expire time
     $_res = $this->registry->db->query_first("
@@ -136,26 +146,46 @@ else
     if( $_res )
       $liftdate = $_res['liftdate'];
   }
+  else
+  if( $vbulletin->options['sbet_hide_other_groups'] )
+  {
+    $this->post['usertitle'] = '';
+  }
 
   $liftdate_cache[$this->post['userid']] = $liftdate;
 }
 
-if( $liftdate > 0 )
+if( $liftdate !== false )
 {
-  $post['ban_expire_time'] = construct_phrase(
-    $vbphrase['banned_till_n'],
-    vbdate( $vbulletin->options['dateformat'], $liftdate )
-  );
+  if( $liftdate > 0 )
+  {
+    $post['ban_expire_time'] = construct_phrase(
+      $vbphrase['banned_till_n'],
+      vbdate( $vbulletin->options['dateformat'], $liftdate )
+    );
+  }
+  else
+  {
+    $post['ban_expire_time'] =
+      $vbulletin->options['sbet_show_forever_ban']
+        ? $vbphrase['banned_forever']
+        : '';
+  }
 }]]></phpcode>
 		</plugin>
 	</plugins>
 	<phrases>
 		<phrasetype name="GLOBAL" fieldname="global">
+			<phrase name="banned_forever" date="1256805914" username="Dimit" version=""><![CDATA[(forever)]]></phrase>
 			<phrase name="banned_till_n" date="1256732053" username="Dimit" version=""><![CDATA[(till {1})]]></phrase>
 		</phrasetype>
 		<phrasetype name="vBulletin Settings" fieldname="vbsettings">
 			<phrase name="setting_sbet_banned_usergroups_desc" date="1256654009" username="Dimit" version="0.1"><![CDATA[Show ban expire time only for users from these groups]]></phrase>
 			<phrase name="setting_sbet_banned_usergroups_title" date="1256654009" username="Dimit" version="0.1"><![CDATA[Banned usergroups]]></phrase>
+			<phrase name="setting_sbet_hide_other_groups_desc" date="1256808862" username="Dimit" version="0.2"><![CDATA[If groups is not selected above, it's title will be hidden in postbit to save space. But will be still visible in user profile.]]></phrase>
+			<phrase name="setting_sbet_hide_other_groups_title" date="1256808862" username="Dimit" version="0.2"><![CDATA[Hide other groups titles in postbits]]></phrase>
+			<phrase name="setting_sbet_show_forever_ban_desc" date="1256807737" username="Vitaly" version=""><![CDATA[Add 'forever' message to usergroup text, if user have permanent ban.]]></phrase>
+			<phrase name="setting_sbet_show_forever_ban_title" date="1256807688" username="Vitaly" version=""><![CDATA[Show permanent ban comment]]></phrase>
 			<phrase name="settinggroup_show_ban_expire_time" date="1256653860" username="Dimit" version="0.1"><![CDATA[Show ban expire time]]></phrase>
 		</phrasetype>
 	</phrases>
@@ -165,6 +195,16 @@ if( $liftdate > 0 )
 				<datatype>free</datatype>
 				<optioncode>usergroup:5</optioncode>
 				<defaultvalue>a:1:{i:0;i:8;}</defaultvalue>
+			</setting>
+			<setting varname="sbet_show_forever_ban" displayorder="20">
+				<datatype>boolean</datatype>
+				<optioncode>yesno</optioncode>
+				<defaultvalue>0</defaultvalue>
+			</setting>
+			<setting varname="sbet_hide_other_groups" displayorder="30">
+				<datatype>boolean</datatype>
+				<optioncode>yesno</optioncode>
+				<defaultvalue>1</defaultvalue>
 			</setting>
 		</settinggroup>
 	</options>
