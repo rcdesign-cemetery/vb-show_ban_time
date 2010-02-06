@@ -41,26 +41,63 @@ $_res = $db->query_first("
   ");
 if( $_res)
 {
+    if ($_res['liftdate'] > 0 )
+    {
+        $ban_expire_time = construct_phrase(
+            $vbphrase['banned_till_n'],
+            vbdate( $vbulletin->options['dateformat'], $_res['liftdate'] )
+        );
+    }
+    else
+    {
+        $ban_expire_time =
+            $vbulletin->options['sbet_show_forever_ban']
+            ? $vbphrase['banned_forever']
+            : '';
+    }
+    if ($ban_expire_time)
+        $prepared['usertitle'] .= ' ' . $ban_expire_time;
+    unset( $_res );
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Get ban expire time in private message</title>
+			<hookname>postbit_display_complete</hookname>
+			<phpcode><![CDATA[if (THIS_SCRIPT == 'private')
+{
+    $ban_expire_time = '';
+    // get ban expire time
+    $_res = $this->registry->db->query_first("
+                SELECT
+                    `liftdate`
+                FROM
+                    `" . TABLE_PREFIX . "userban`
+                WHERE
+                    `userid` = " . intval( $this->post['fromuserid'] ) . "
+                LIMIT 1
+            ");
+    
     if( $_res)
     {
         if ($_res['liftdate'] > 0 )
         {
             $ban_expire_time = construct_phrase(
                 $vbphrase['banned_till_n'],
-                vbdate( $vbulletin->options['dateformat'], $_res['liftdate'] )
+                vbdate( $this->registry->options['dateformat'], $_res['liftdate'] )
             );
         }
         else
         {
             $ban_expire_time =
-                $vbulletin->options['sbet_show_forever_ban']
+                $this->registry->options['sbet_show_forever_ban']
                 ? $vbphrase['banned_forever']
                 : '';
         }
     }
-    if ($ban_expire_time)
-        $prepared['usertitle'] .= ' ' . $ban_expire_time;
     unset( $_res );
+    
+    if (!empty($ban_users[$this->post['fromuserid']]))
+        $this->post['usertitle'] .= ' ' . $ban_expire_time;
 }]]></phpcode>
 		</plugin>
 		<plugin active="1" executionorder="5">
@@ -80,7 +117,7 @@ if( $_res)
             ? $vbphrase['banned_forever'] : '';
     }
     if ($ban_expire_time)
-        $prepared['usertitle'] .= ' ' . $ban_expire_time;
+        $post['usertitle'] .= ' ' . $ban_expire_time;
 }]]></phpcode>
 		</plugin>
 		<plugin active="1" executionorder="5">
