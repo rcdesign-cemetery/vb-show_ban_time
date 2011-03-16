@@ -3,7 +3,7 @@
 <product productid="show_ban_expire_time" active="1">
 	<title>Show ban expire time</title>
 	<description><![CDATA[Show user's ban expire time in messages and profile]]></description>
-	<version>0.3</version>
+	<version>0.4</version>
 	<url><![CDATA[http://www.vbulletin.org/forum/misc.php?do=producthelp&pid=show_ban_expire_time]]></url>
 	<versioncheckurl><![CDATA[http://www.vbulletin.org/forum/misc.php?do=productcheck&pid=show_ban_expire_time]]></versioncheckurl>
 	<apm_releasedate>0</apm_releasedate>
@@ -136,13 +136,13 @@ $ban_liftdate = $db->query_first_slave($sql);]]></phpcode>
 		<plugin active="1" executionorder="5">
 			<title>Add ban expire info to user title (showthread)</title>
 			<hookname>showthread_postbit_create</hookname>
-			<phpcode><![CDATA[if (isset($baned_users[$post['userid']]))
+			<phpcode><![CDATA[if (isset($post['userban_liftdate']))
 {
-    if( $baned_users[$post['userid']] > 0 )
+    if( $post['userban_liftdate'] > 0 )
     {
         $ban_expire_time = construct_phrase($vbphrase['banned_till_n'],
                                                 vbdate( $vbulletin->options['dateformat'],
-                                                $baned_users[$post['userid']] ));
+                                                $post['userban_liftdate'] ));
     }
     else
     {
@@ -156,19 +156,8 @@ $ban_liftdate = $db->query_first_slave($sql);]]></phpcode>
 		<plugin active="1" executionorder="5">
 			<title>Get list of baned users</title>
 			<hookname>showthread_query</hookname>
-			<phpcode><![CDATA[$sql = 'SELECT
-                userban.`userid`, userban.`liftdate`
-			FROM
-                ' . TABLE_PREFIX . 'userban AS userban
-            LEFT JOIN
-                ' . TABLE_PREFIX . 'post AS post ON (userban.userid = post.userid)
-            WHERE
-                ' . $postids;
-$db_res = $db->query_read($sql);
-while ($row = $db->fetch_array($db_res))
-{
-    $baned_users[$row['userid']] = $row['liftdate'];
-}]]></phpcode>
+			<phpcode><![CDATA[$hook_query_fields = ', userban.`liftdate` AS userban_liftdate';
+$hook_query_joins = 'LEFT JOIN ' . TABLE_PREFIX . 'userban AS userban ON (userban.userid = post.userid)';]]></phpcode>
 		</plugin>
 	</plugins>
 	<phrases>
